@@ -5,64 +5,108 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SEIM Dashboard</title>
     <style>
-      :root {
-        --bg: #0b1220;
-        --panel: #111827;
-        --line: #1f2937;
-        --text: #e2e8f0;
-        --muted: #94a3b8;
-      }
       * { box-sizing: border-box; }
       body {
         margin: 0;
-        background: var(--bg);
-        color: var(--text);
         font-family: Arial, sans-serif;
+        background: #0f172a;
+        color: #e2e8f0;
       }
-      .container { max-width: 1300px; margin: 0 auto; padding: 24px; }
-      .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-      .cards { display: grid; grid-template-columns: repeat(4, minmax(180px, 1fr)); gap: 16px; }
-      .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px; }
-      .card-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
-      .card-value { font-size: 32px; font-weight: bold; margin-top: 8px; }
-      .grid { margin-top: 20px; display: grid; grid-template-columns: 1.5fr 1fr; gap: 20px; }
-      .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
-      table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-      th, td { padding: 10px 12px; border-bottom: 1px solid var(--line); text-align: left; }
-      th { color: #bfdbfe; }
-      .badge { display: inline-block; padding: 4px 8px; border-radius: 999px; font-size: 11px; font-weight: bold; }
-      .critical { background: rgba(239,68,68,0.2); color: #fca5a5; }
-      .high { background: rgba(249,115,22,0.2); color: #fdba74; }
-      .medium { background: rgba(245,158,11,0.2); color: #fcd34d; }
-      .low { background: rgba(34,197,94,0.2); color: #86efac; }
-      .open { background: rgba(59,130,246,0.2); color: #bfdbfe; }
-      .investigating { background: rgba(245,158,11,0.2); color: #fcd34d; }
-      .resolved { background: rgba(34,197,94,0.2); color: #86efac; }
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+      }
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(220px, 1fr));
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+      .card {
+        background: #111827;
+        border: 1px solid #1f2937;
+        border-radius: 12px;
+        padding: 20px;
+      }
+      .card h3 {
+        margin: 0 0 10px;
+        color: #94a3b8;
+        font-size: 14px;
+        text-transform: uppercase;
+      }
+      .card .value {
+        font-size: 28px;
+        font-weight: bold;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 1.5fr 1fr;
+        gap: 20px;
+      }
+      .panel {
+        background: #111827;
+        border: 1px solid #1f2937;
+        border-radius: 12px;
+        padding: 16px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 12px;
+      }
+      th, td {
+        padding: 10px 12px;
+        border-bottom: 1px solid #1f2937;
+        text-align: left;
+      }
+      th {
+        color: #93c5fd;
+      }
+      .badge {
+        padding: 4px 8px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: bold;
+      }
+      .critical { background: #7f1d1d; color: #fecaca; }
+      .high { background: #7c2d12; color: #fdba74; }
+      .medium { background: #78350f; color: #fcd34d; }
+      .low { background: #14532d; color: #bbf7d0; }
+      .open { background: #1e3a8a; color: #bfdbfe; }
+      .investigating { background: #713f12; color: #fcd34d; }
+      .resolved { background: #14532d; color: #bbf7d0; }
     </style>
   </head>
   <body>
     <div class="container">
-      <div class="topbar">
+      <div class="header">
         <h1>SEIM Dashboard</h1>
-        <div id="status">Loading...</div>
+        <div id="status">Loading monitoring data...</div>
       </div>
 
       <div class="cards">
         <div class="card">
-          <div class="card-label">Total Events</div>
-          <div id="totalEvents" class="card-value">0</div>
+          <h3>Total Events</h3>
+          <div id="totalEvents" class="value">0</div>
         </div>
         <div class="card">
-          <div class="card-label">Critical Alerts</div>
-          <div id="criticalAlerts" class="card-value">0</div>
+          <h3>Critical Alerts</h3>
+          <div id="criticalAlerts" class="value">0</div>
         </div>
         <div class="card">
-          <div class="card-label">Open Incidents</div>
-          <div id="openIncidents" class="card-value">0</div>
+          <h3>Open Incidents</h3>
+          <div id="openIncidents" class="value">0</div>
         </div>
         <div class="card">
-          <div class="card-label">Resolved Today</div>
-          <div id="resolvedToday" class="card-value">0</div>
+          <h3>Resolved Today</h3>
+          <div id="resolvedToday" class="value">0</div>
         </div>
       </div>
 
@@ -73,7 +117,7 @@
             <thead>
               <tr>
                 <th>Source</th>
-                <th>Event</th>
+                <th>Type</th>
                 <th>Severity</th>
                 <th>Message</th>
               </tr>
@@ -87,7 +131,7 @@
           <table>
             <thead>
               <tr>
-                <th>Alert</th>
+                <th>Title</th>
                 <th>Severity</th>
                 <th>Status</th>
               </tr>
@@ -102,25 +146,25 @@
     <script>
       const socket = io();
 
-      async function refreshDashboard() {
-        const res = await fetch('/api/dashboard');
-        const data = await res.json();
-        const summary = data.data;
+      async function loadDashboard() {
+        const resp = await fetch('/api/dashboard');
+        const result = await resp.json();
+        const data = result.data;
 
-        document.getElementById('totalEvents').textContent = summary.totalEvents;
-        document.getElementById('criticalAlerts').textContent = summary.criticalAlerts;
-        document.getElementById('openIncidents').textContent = summary.openIncidents;
-        document.getElementById('resolvedToday').textContent = summary.resolvedToday;
-        document.getElementById('status').textContent = `Last updated: ${new Date(summary.lastUpdated).toLocaleString()}`;
+        document.getElementById('totalEvents').textContent = data.totalEvents;
+        document.getElementById('criticalAlerts').textContent = data.criticalAlerts;
+        document.getElementById('openIncidents').textContent = data.openIncidents;
+        document.getElementById('resolvedToday').textContent = data.resolvedToday;
+        document.getElementById('status').textContent = `Last updated: ${new Date(data.lastUpdated).toLocaleString()}`;
       }
 
-      async function refreshEvents() {
-        const res = await fetch('/api/events');
-        const data = await res.json();
+      async function loadEvents() {
+        const resp = await fetch('/api/events');
+        const result = await resp.json();
         const rows = document.getElementById('eventsTable');
         rows.innerHTML = '';
 
-        (data.data || []).slice(0, 7).forEach(event => {
+        result.data.slice(0, 8).forEach(event => {
           const tr = document.createElement('tr');
           tr.innerHTML = `
             <td>${event.source}</td>
@@ -132,13 +176,13 @@
         });
       }
 
-      async function refreshAlerts() {
-        const res = await fetch('/api/alerts');
-        const data = await res.json();
+      async function loadAlerts() {
+        const resp = await fetch('/api/alerts');
+        const result = await resp.json();
         const rows = document.getElementById('alertsTable');
         rows.innerHTML = '';
 
-        (data.data || []).slice(0, 7).forEach(alert => {
+        result.data.slice(0, 8).forEach(alert => {
           const tr = document.createElement('tr');
           tr.innerHTML = `
             <td>${alert.title}</td>
@@ -150,18 +194,18 @@
       }
 
       socket.on('new-event', () => {
-        refreshDashboard();
-        refreshEvents();
+        loadDashboard();
+        loadEvents();
       });
 
       socket.on('new-alert', () => {
-        refreshDashboard();
-        refreshAlerts();
+        loadDashboard();
+        loadAlerts();
       });
 
-      refreshDashboard();
-      refreshEvents();
-      refreshAlerts();
+      loadDashboard();
+      loadEvents();
+      loadAlerts();
     </script>
   </body>
 </html>

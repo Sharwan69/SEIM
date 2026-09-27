@@ -1,8 +1,8 @@
 const express = require('express');
-const router = express.Router();
 const SecurityEvent = require('../models/SecurityEvent');
 const logger = require('../config/logger');
-const { evaluateSecurityEvent } = require('../services/detectionEngine');
+
+const router = express.Router();
 
 const demoEvents = [
   {
@@ -60,15 +60,10 @@ router.post('/', async (req, res) => {
     });
 
     const saved = await event.save();
-    const alerts = await evaluateSecurityEvent(saved.toObject());
-
     req.io.emit('new-event', saved);
-    if (alerts.length > 0) {
-      req.io.emit('new-alert', alerts[0]);
-    }
 
     logger.info(`New event ingested: ${saved.eventType}`);
-    return res.status(201).json({ success: true, data: saved, alerts });
+    return res.status(201).json({ success: true, data: saved });
   } catch (error) {
     logger.error(`Event creation failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to create event' });
