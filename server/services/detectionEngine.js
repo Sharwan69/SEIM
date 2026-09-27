@@ -1,82 +1,129 @@
 const Alert = require('../models/Alert');
+const SuspiciousIP = require('../models/SuspiciousIP');
+const SecurityEvent = require('../models/SecurityEvent');
+const logger = require('../config/logger');
 
-function normalizeEvent(event) {
-  return {
-    source: event.source || 'unknown-source',
-    sourceType: event.sourceType || 'Generic',
-    eventType: event.eventType || 'custom_event',
-    severity: event.severity || 'medium',
-    message: event.message || 'Security event detected',
-    timestamp: new Date()
-  };
-}
+const detectionEngine = {
+  async detectBruteForce(event, io) {
+    if (event.eventType !== 'login_failed') return null;
 
-async function createAlertIfNeeded(alertData) {
-  try {
-    const alert = await Alert.create({
-      title: alertData.title,
-      severity: alertData.severity || 'medium',
-      status: 'open',
-      source: alertData.source || 'unknown',
-      description: alertData.description || ''
-    });
+    const timeWindow = 5 * 60 * 1000;
+    const threshold = 5;
 
-    return alert;
-  } catch (err) {
+    try {
+      const failedAttempts = await SecurityEvent.countDocuments({
+        source: event.source,
+        eventType: 'login_failed',
+        timestamp: { $gte: new Date(Date.now() - timeWindow) }
+      });
+
+      if (failedAttempts >= threshold) {
+        const alert = new Alert({
+          title: `Brute Force Attack Detected: ${event.source}`,
+          severity: failedAttempts >= 10 ? 'critical' : 'high',
+          status: 'open',
+          source: event.source,
+          description: `${failedAttempts} failed login attempts from ${event.source} in 5 minutes`
+        });
+
+        await alert.save();
+        io.emit('new-alert', alert);
+        logger.warn(`Brute force detected on ${event.source}: ${failedAttempts} attempts`);
+        return alert;
+      }
+    } catch (error) {
+      logger.error(`Brute force detection failed: ${error.message}`);
+    }
+
     return null;
+  },
+
+  async detectSuspiciousIP(event, io) {
+    if (event.eventType !== 'login_failed' && event.eventType !== 'port_scan') return null;
+
+    try {
+      let suspiciousIP = await SuspiciousIP.findOne({ ipAddress: event.source });
+
+      if (!suspiciousIP) {
+        suspiciousIP = new SuspiciousIP({
+          ipAddress: event.source,
+          reason: `Multiple ${event.eventType} events`,
+          failedAttempts: 1,
+          severity: 'medium'
+        });
+      } else {
+        suspiciousIP.failedAttempts += 1;
+        suspiciousIP.lastSeen = new Date();
+
+        if (suspiciousIP.failedAttempts >= 10) {
+          suspiciousIP.severity = 'critical';
+          suspiciousIP.blocked = true;
+        } else if (suspiciousIP.failedAttempts >= 5) {
+          suspiciousIP.severity = 'high';
+        }
+      }
+
+      await suspiciousIP.save();
+
+      if (suspiciousIP.failedAttempts >= 5) {
+        const alert = new Alert({
+          title: `Suspicious IP Detected: ${event.source}`,
+          severity: suspiciousIP.severity,
+          status: 'open',
+          source: event.source,
+          description: `IP ${event.source} has ${suspiciousIP.failedAttempts} suspicious events`
+        });
+
+        await alert.save();
+        io.emit('new-alert', alert);
+        logger.warn(`Suspicious IP tracked: ${event.source} (${suspiciousIP.failedAttempts} attempts)`);
+        return alert;
+      }
+    } catch (error) {
+      logger.error(`Suspicious IP detection failed: ${error.message}`);
+    }
+
+    return null;
+  },
+
+  async detectPortScan(event, io) {
+    if (event.eventType !== 'port_scan') return null;
+
+    try {
+      const portScanCount = await SecurityEvent.countDocuments({
+        source: event.source,
+        eventType: 'port_scan',
+        timestamp: { $gte: new Date(Date.now() - 2 * 60 * 1000) }
+      });
+
+      if (portScanCount >= 10) {
+        const alert = new Alert({
+          title: `Port Scan Activity Detected: ${event.source}`,
+          severity: 'critical',
+          status: 'open',
+          source: event.source,
+          description: `Port scanning activity from ${event.source} (${portScanCount} attempts in 2 minutes)`
+        });
+
+        await alert.save();
+        io.emit('new-alert', alert);
+        logger.error(`Port scan detected on ${event.source}: ${portScanCount} attempts`);
+        return alert;
+      }
+    } catch (error) {
+      logger.error(`Port scan detection failed: ${error.message}`);
+    }
+
+    return null;
+  },
+
+  async processEvent(event, io) {
+    await Promise.all([
+      this.detectBruteForce(event, io),
+      this.detectSuspiciousIP(event, io),
+      this.detectPortScan(event, io)
+    ]);
   }
-}
-
-async function evaluateSecurityEvent(event) {
-  const normalized = normalizeEvent(event);
-  const rules = [];
-
-  if (normalized.eventType === 'login_failed') {
-    rules.push({
-      title: 'Brute force login attempt detected',
-      severity: 'high',
-      source: normalized.source,
-      description: `Multiple failed logins from ${normalized.source}`
-    });
-  }
-
-  if (normalized.eventType === 'port_scan') {
-    rules.push({
-      title: 'Port scan detected',
-      severity: 'critical',
-      source: normalized.source,
-      description: 'Host is probing multiple ports in a short time window'
-    });
-  }
-
-  if (normalized.eventType === 'suspicious_request') {
-    rules.push({
-      title: 'Suspicious request pattern detected',
-      severity: 'medium',
-      source: normalized.source,
-      description: 'Abnormal request pattern detected by application layer filters'
-    });
-  }
-
-  if (normalized.eventType === 'malware_signature') {
-    rules.push({
-      title: 'Malware signature match',
-      severity: 'critical',
-      source: normalized.source,
-      description: 'Malware signature hit on monitored endpoint'
-    });
-  }
-
-  const created = [];
-
-  for (const rule of rules) {
-    const alert = await createAlertIfNeeded(rule);
-    if (alert) created.push(alert);
-  }
-
-  return created;
-}
-
-module.exports = {
-  evaluateSecurityEvent
 };
+
+module.exports = detectionEngine;
