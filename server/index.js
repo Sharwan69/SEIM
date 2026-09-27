@@ -9,6 +9,8 @@ const logger = require('./config/logger');
 const eventRoutes = require('./routes/events');
 const alertRoutes = require('./routes/alerts');
 const dashboardRoutes = require('./routes/dashboard');
+const authRoutes = require('./routes/auth');
+const authMiddleware = require('./middleware/auth');
 
 dotenv.config();
 
@@ -33,16 +35,24 @@ app.use((req, res, next) => {
 });
 
 app.get('/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    service: 'SEIM',
-    timestamp: new Date().toISOString()
-  });
+  res.json({ status: 'ok', service: 'SEIM', timestamp: new Date().toISOString() });
 });
 
+app.use('/api/auth', authRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/alerts', alertRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+
+app.get('/api/admin', authMiddleware, (req, res) => {
+  res.json({
+    success: true,
+    user: {
+      id: req.user._id,
+      username: req.user.username,
+      role: req.user.role
+    }
+  });
+});
 
 app.use(express.static(path.join(__dirname, '../public')));
 
@@ -63,3 +73,5 @@ connectDatabase();
 server.listen(PORT, () => {
   logger.info(`SEIM server running on http://localhost:${PORT}`);
 });
+
+module.exports = { app, io, server };
