@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SEIM Dashboard</title>
+    <style>
+      :root {
+        --bg: #0b1220;
+        --panel: #111827;
+        --line: #1f2937;
+        --text: #e2e8f0;
+        --muted: #94a3b8;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: Arial, sans-serif;
+      }
+      .container { max-width: 1300px; margin: 0 auto; padding: 24px; }
+      .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+      .cards { display: grid; grid-template-columns: repeat(4, minmax(180px, 1fr)); gap: 16px; }
+      .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px; }
+      .card-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+      .card-value { font-size: 32px; font-weight: bold; margin-top: 8px; }
+      .grid { margin-top: 20px; display: grid; grid-template-columns: 1.5fr 1fr; gap: 20px; }
+      .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+      table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+      th, td { padding: 10px 12px; border-bottom: 1px solid var(--line); text-align: left; }
+      th { color: #bfdbfe; }
+      .badge { display: inline-block; padding: 4px 8px; border-radius: 999px; font-size: 11px; font-weight: bold; }
+      .critical { background: rgba(239,68,68,0.2); color: #fca5a5; }
+      .high { background: rgba(249,115,22,0.2); color: #fdba74; }
+      .medium { background: rgba(245,158,11,0.2); color: #fcd34d; }
+      .low { background: rgba(34,197,94,0.2); color: #86efac; }
+      .open { background: rgba(59,130,246,0.2); color: #bfdbfe; }
+      .investigating { background: rgba(245,158,11,0.2); color: #fcd34d; }
+      .resolved { background: rgba(34,197,94,0.2); color: #86efac; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="topbar">
+        <h1>SEIM Dashboard</h1>
+        <div id="status">Loading...</div>
+      </div>
+
+      <div class="cards">
+        <div class="card">
+          <div class="card-label">Total Events</div>
+          <div id="totalEvents" class="card-value">0</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Critical Alerts</div>
+          <div id="criticalAlerts" class="card-value">0</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Open Incidents</div>
+          <div id="openIncidents" class="card-value">0</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Resolved Today</div>
+          <div id="resolvedToday" class="card-value">0</div>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="panel">
+          <h2>Recent Security Events</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Source</th>
+                <th>Event</th>
+                <th>Severity</th>
+                <th>Message</th>
+              </tr>
+            </thead>
+            <tbody id="eventsTable"></tbody>
+          </table>
+        </div>
+
+        <div class="panel">
+          <h2>Latest Alerts</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Alert</th>
+                <th>Severity</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="alertsTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+      const socket = io();
+
+      async function refreshDashboard() {
+        const res = await fetch('/api/dashboard');
+        const data = await res.json();
+        const summary = data.data;
+
+        document.getElementById('totalEvents').textContent = summary.totalEvents;
+        document.getElementById('criticalAlerts').textContent = summary.criticalAlerts;
+        document.getElementById('openIncidents').textContent = summary.openIncidents;
+        document.getElementById('resolvedToday').textContent = summary.resolvedToday;
+        document.getElementById('status').textContent = `Last updated: ${new Date(summary.lastUpdated).toLocaleString()}`;
+      }
+
+      async function refreshEvents() {
+        const res = await fetch('/api/events');
+        const data = await res.json();
+        const rows = document.getElementById('eventsTable');
+        rows.innerHTML = '';
+
+        (data.data || []).slice(0, 7).forEach(event => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${event.source}</td>
+            <td>${event.eventType}</td>
+            <td><span class="badge ${event.severity}">${event.severity}</span></td>
+            <td>${event.message}</td>
+          `;
+          rows.appendChild(tr);
+        });
+      }
+
+      async function refreshAlerts() {
+        const res = await fetch('/api/alerts');
+        const data = await res.json();
+        const rows = document.getElementById('alertsTable');
+        rows.innerHTML = '';
+
+        (data.data || []).slice(0, 7).forEach(alert => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${alert.title}</td>
+            <td><span class="badge ${alert.severity}">${alert.severity}</span></td>
+            <td><span class="badge ${alert.status}">${alert.status}</span></td>
+          `;
+          rows.appendChild(tr);
+        });
+      }
+
+      socket.on('new-event', () => {
+        refreshDashboard();
+        refreshEvents();
+      });
+
+      socket.on('new-alert', () => {
+        refreshDashboard();
+        refreshAlerts();
+      });
+
+      refreshDashboard();
+      refreshEvents();
+      refreshAlerts();
+    </script>
+  </body>
+</html>
