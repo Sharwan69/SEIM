@@ -1,0 +1,16 @@
+# SIEM Collector Configuration
+SIEM_SERVER="http://localhost:5000"
+API_KEY="your-secure-api-key"
+COLLECTOR_NAME="linux-prod-server"
+COLLECTOR_TYPE="Linux Server"
+HEARTBEAT_INTERVAL=30
+EVENT_BATCH_SIZE=10
+COLLECTION_INTERVAL=10
+LOG_FILES=(
+  "/var/log/auth.log"
+  "/var/log/syslog"
+  "/var/log/secure"
+  "/var/log/audit/audit.log"
+  "/var/log/apache2/access.log"
+  "/var/log/apache2/error.log"
+)
