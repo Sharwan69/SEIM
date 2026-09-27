@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SEIM Admin Panel</title>
+    <style>
+      :root {
+        --bg: #0b1220;
+        --panel: #111827;
+        --line: #1f2937;
+        --text: #e2e8f0;
+        --muted: #94a3b8;
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: Arial, sans-serif;
+        padding: 24px;
+      }
+      .container {
+        max-width: 1000px;
+        margin: 0 auto;
+      }
+      .topbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+      }
+      .logout-btn {
+        background: #ef4444;
+        border: none;
+        color: white;
+        padding: 8px 16px;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      .box {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+      }
+      input, select, button {
+        padding: 10px 12px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: #0f172a;
+        color: white;
+        margin-top: 8px;
+        margin-right: 8px;
+        font-size: 14px;
+      }
+      button {
+        background: #3b82f6;
+        border: none;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #2563eb;
+      }
+      input:focus, select:focus {
+        outline: none;
+        border-color: #3b82f6;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 16px;
+      }
+      th, td {
+        padding: 12px;
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+      }
+      th {
+        color: #bfdbfe;
+        font-weight: bold;
+      }
+      .badge {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: bold;
+      }
+      .enabled { background: rgba(34,197,94,0.2); color: #86efac; }
+      .disabled { background: rgba(239,68,68,0.2); color: #fca5a5; }
+      .message {
+        padding: 12px;
+        border-radius: 8px;
+        margin-top: 12px;
+        font-size: 14px;
+      }
+      .success {
+        background: rgba(34,197,94,0.2);
+        color: #86efac;
+      }
+      .error {
+        background: rgba(239,68,68,0.2);
+        color: #fca5a5;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="topbar">
+        <h1>Admin Panel</h1>
+        <button class="logout-btn" id="logoutBtn">Logout</button>
+      </div>
+
+      <div class="box">
+        <h3>Create Detection Rule</h3>
+        <div>
+          <input id="ruleName" placeholder="Rule name" />
+          <input id="ruleDescription" placeholder="Description" />
+          <input id="ruleEventType" placeholder="Event type (e.g., login_failed)" />
+          <select id="ruleSeverity">
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high" selected>High</option>
+            <option value="critical">Critical</option>
+          </select>
+          <input id="ruleThreshold" type="number" placeholder="Threshold" value="1" />
+          <button id="ruleBtn">Create Rule</button>
+        </div>
+        <div id="ruleMessage"></div>
+      </div>
+
+      <div class="box">
+        <h3>Detection Rules</h3>
+        <table id="ruleTable">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Event Type</th>
+              <th>Severity</th>
+              <th>Threshold</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <script>
+      const token = localStorage.getItem('siemToken');
+      const user = JSON.parse(localStorage.getItem('siemUser') || '{}');
+
+      if (!token || user.role !== 'admin') {
+        window.location.href = '/login.html';
+      }
+
+      document.getElementById('logoutBtn').addEventListener('click', () => {
+        localStorage.removeItem('siemToken');
+        localStorage.removeItem('siemUser');
+        window.location.href = '/login.html';
+      });
+
+      async function loadRules() {
+        try {
+          const response = await fetch('/api/rules', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          const data = await response.json();
+          const tbody = document.querySelector('#ruleTable tbody');
+
+          tbody.innerHTML = '';
+
+          (data.data || []).forEach((rule) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td>${rule.name}</td>
+              <td>${rule.eventType}</td>
+              <td>${rule.severity}</td>
+              <td>${rule.threshold}</td>
+              <td><span class="badge ${rule.enabled ? 'enabled' : 'disabled'}">${rule.enabled ? 'Enabled' : 'Disabled'}</span></td>
+              <td><button onclick="deleteRule('${rule._id}')">Delete</button></td>
+            `;
+            tbody.appendChild(tr);
+          });
+        } catch (error) {
+          console.error('Failed to load rules');
+        }
+      }
+
+      document.getElementById('ruleBtn').addEventListener('click', async () => {
+        const name = document.getElementById('ruleName').value.trim();
+        const description = document.getElementById('ruleDescription').value.trim();
+        const eventType = document.getElementById('ruleEventType').value.trim();
+        const severity = document.getElementById('ruleSeverity').value;
+        const threshold = Number(document.getElementById('ruleThreshold').value);
+        const msgDiv = document.getElementById('ruleMessage');
+
+        if (!name || !eventType) {
+          msgDiv.innerHTML = '<div class="message error">Please fill in required fields</div>';
+          return;
+        }
+
+        try {
+          const response = await fetch('/api/rules', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify({ name, description, eventType, severity, threshold })
+          });
+
+          const result = await response.json();
+          if (result.success) {
+            msgDiv.innerHTML = '<div class="message success">Rule created successfully</div>';
+            document.getElementById('ruleName').value = '';
+            document.getElementById('ruleDescription').value = '';
+            document.getElementById('ruleEventType').value = '';
+            document.getElementById('ruleThreshold').value = '1';
+            setTimeout(() => loadRules(), 500);
+          } else {
+            msgDiv.innerHTML = `<div class="message error">${result.message}</div>`;
+          }
+        } catch (error) {
+          msgDiv.innerHTML = '<div class="message error">Failed to create rule</div>';
+        }
+      });
+
+      async function deleteRule(ruleId) {
+        if (!confirm('Are you sure?')) return;
+        try {
+          const response = await fetch(`/api/rules/${ruleId}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          const result = await response.json();
+          if (result.success) {
+            loadRules();
+          }
+        } catch (error) {
+          console.error('Failed to delete rule');
+        }
+      }
+
+      loadRules();
+    </script>
+  </body>
+</html>

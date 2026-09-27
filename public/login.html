@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SEIM Login</title>
+    <style>
+      :root {
+        --bg: #0b1220;
+        --panel: #111827;
+        --line: #1f2937;
+        --text: #e2e8f0;
+        --muted: #94a3b8;
+      }
+
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        font-family: Arial, sans-serif;
+      }
+      .card {
+        width: 420px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 36px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+      }
+      h1 {
+        text-align: center;
+        margin-bottom: 24px;
+        font-size: 28px;
+      }
+      input, button {
+        width: 100%;
+        margin-top: 12px;
+        padding: 12px 14px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: #0f172a;
+        color: var(--text);
+        font-size: 14px;
+      }
+      input:focus {
+        outline: none;
+        border-color: #3b82f6;
+      }
+      button {
+        background: #3b82f6;
+        border: none;
+        cursor: pointer;
+        font-weight: bold;
+        margin-top: 16px;
+      }
+      button:hover {
+        background: #2563eb;
+      }
+      .error {
+        color: #fca5a5;
+        font-size: 12px;
+        margin-top: 8px;
+        text-align: center;
+      }
+      .success {
+        color: #86efac;
+        font-size: 12px;
+        margin-top: 8px;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>SEIM</h1>
+      <input id="email" type="email" placeholder="Email" />
+      <input id="password" type="password" placeholder="Password" />
+      <button id="loginBtn">Login</button>
+      <div id="message"></div>
+    </div>
+
+    <script>
+      document.getElementById('loginBtn').addEventListener('click', async () => {
+        const email = document.getElementById('email').value.trim();
+        const password = document.getElementById('password').value.trim();
+        const messageDiv = document.getElementById('message');
+
+        if (!email || !password) {
+          messageDiv.innerHTML = '<div class="error">Please fill in all fields</div>';
+          return;
+        }
+
+        try {
+          const response = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+          });
+
+          const data = await response.json();
+          if (data.success) {
+            localStorage.setItem('siemToken', data.token);
+            localStorage.setItem('siemUser', JSON.stringify(data.user));
+            messageDiv.innerHTML = '<div class="success">Logging in...</div>';
+            setTimeout(() => {
+              window.location.href = '/';
+            }, 500);
+          } else {
+            messageDiv.innerHTML = `<div class="error">${data.message || 'Login failed'}</div>`;
+          }
+        } catch (error) {
+          messageDiv.innerHTML = '<div class="error">Connection error</div>';
+        }
+      });
+
+      document.getElementById('password').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') document.getElementById('loginBtn').click();
+      });
+    </script>
+  </body>
+</html>
