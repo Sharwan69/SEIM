@@ -10,6 +10,7 @@ const eventRoutes = require('./routes/events');
 const alertRoutes = require('./routes/alerts');
 const dashboardRoutes = require('./routes/dashboard');
 const authRoutes = require('./routes/auth');
+const incidentRoutes = require('./routes/incidents');
 const authMiddleware = require('./middleware/auth');
 
 dotenv.config();
@@ -41,6 +42,7 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/alerts', alertRoutes);
+app.use('/api/incidents', incidentRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 
 app.get('/api/admin', authMiddleware, (req, res) => {
