@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Audit Logs - SEIM</title>
+    <style>
+      :root {
+        --bg: #0b1220;
+        --panel: #111827;
+        --line: #1f2937;
+        --text: #e2e8f0;
+        --muted: #94a3b8;
+        --primary: #3b82f6;
+        --success: #22c55e;
+        --danger: #ef4444;
+      }
+
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        padding: 24px;
+      }
+      .container {
+        max-width: 1400px;
+        margin: 0 auto;
+      }
+      .topbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+      }
+      .back-btn {
+        background: var(--muted);
+        border: none;
+        color: white;
+        padding: 8px 16px;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+      .stat-card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 20px;
+        text-align: center;
+      }
+      .stat-label {
+        color: var(--muted);
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 8px;
+      }
+      .stat-value {
+        font-size: 28px;
+        font-weight: bold;
+        color: var(--primary);
+      }
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 20px;
+      }
+      .panel h3 {
+        margin-top: 0;
+        margin-bottom: 16px;
+        font-size: 16px;
+      }
+      .filters {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+      input, select {
+        padding: 10px 12px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: #0f172a;
+        color: var(--text);
+        font-size: 14px;
+      }
+      input:focus, select:focus {
+        outline: none;
+        border-color: var(--primary);
+      }
+      button {
+        padding: 10px 16px;
+        border-radius: 8px;
+        border: none;
+        background: var(--primary);
+        color: white;
+        cursor: pointer;
+        font-weight: 600;
+        transition: background 0.2s;
+      }
+      button:hover {
+        background: #2563eb;
+      }
+      .export-btn {
+        background: var(--success);
+      }
+      .export-btn:hover {
+        background: #16a34a;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 16px;
+      }
+      th {
+        background: rgba(59, 130, 246, 0.1);
+        padding: 12px;
+        text-align: left;
+        font-weight: 600;
+        border-bottom: 2px solid var(--line);
+        font-size: 13px;
+      }
+      td {
+        padding: 12px;
+        border-bottom: 1px solid var(--line);
+        font-size: 13px;
+      }
+      tr:hover {
+        background: rgba(59, 130, 246, 0.05);
+      }
+      .badge {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 600;
+      }
+      .badge.success { background: rgba(34, 197, 94, 0.2); color: #86efac; }
+      .badge.failure { background: rgba(239, 68, 68, 0.2); color: #fca5a5; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="topbar">
+        <button class="back-btn" onclick="window.history.back()">← Back</button>
+        <h1>Audit Logs</h1>
+        <button class="export-btn" onclick="exportAuditLogs()">📥 Export CSV</button>
+      </div>
+
+      <!-- Summary Stats -->
+      <div class="summary-grid" id="summaryGrid"></div>
+
+      <!-- Filters & Logs -->
+      <div class="panel">
+        <h3>Audit Trail</h3>
+        <div class="filters">
+          <input id="actorFilter" type="text" placeholder="Filter by actor..." />
+          <input id="actionFilter" type="text" placeholder="Filter by action..." />
+          <button onclick="loadAuditLogs()">🔍 Filter</button>
+        </div>
+        <table id="auditTable">
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Actor</th>
+              <th>Action</th>
+              <th>Entity</th>
+              <th>IP Address</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <script>
+      const token = localStorage.getItem('siemToken');
+      const user = JSON.parse(localStorage.getItem('siemUser') || '{}');
+
+      if (!token || user.role !== 'admin') {
+        window.location.href = '/login.html';
+      }
+
+      async function loadAuditLogs() {
+        const actor = document.getElementById('actorFilter').value;
+        const action = document.getElementById('actionFilter').value;
+        const url = new URL('/api/audit', window.location.origin);
+        if (actor) url.searchParams.append('actor', actor);
+        if (action) url.searchParams.append('action', action);
+
+        try {
+          const response = await fetch(url, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          const data = await response.json();
+
+          const tbody = document.querySelector('#auditTable tbody');
+          tbody.innerHTML = '';
+
+          (data.data || []).forEach(log => {
+            const tr = document.createElement('tr');
+            const timestamp = new Date(log.createdAt).toLocaleString();
+            tr.innerHTML = `
+              <td>${timestamp}</td>
+              <td>${log.actor}</td>
+              <td>${log.action}</td>
+              <td>${log.entity || '-'}</td>
+              <td>${log.ipAddress || '-'}</td>
+              <td><span class="badge ${log.success ? 'success' : 'failure'}">${log.success ? 'Success' : 'Failed'}</span></td>
+            `;
+            tbody.appendChild(tr);
+          });
+        } catch (error) {
+          console.error('Failed to load audit logs:', error);
+        }
+      }
+
+      async function loadSummary() {
+        try {
+          const response = await fetch('/api/audit/summary', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          const data = await response.json();
+
+          if (data.success) {
+            const summary = data.data;
+            document.getElementById('summaryGrid').innerHTML = `
+              <div class="stat-card">
+                <div class="stat-label">Total Logs</div>
+                <div class="stat-value">${summary.totalLogs}</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Last 24 Hours</div>
+                <div class="stat-value">${summary.last24Logs}</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Failed Actions</div>
+                <div class="stat-value" style="color: #fca5a5;">${summary.failedLogs}</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Top Actors</div>
+                <div class="stat-value">${summary.actorStats[0]?.count || 0}</div>
+              </div>
+            `;
+          }
+        } catch (error) {
+          console.error('Failed to load summary:', error);
+        }
+      }
+
+      async function exportAuditLogs() {
+        try {
+          const response = await fetch('/api/audit/export/csv', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+
+          if (response.ok) {
+            const blob = await response.blob();
+            const downloadUrl = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = downloadUrl;
+            a.download = `audit-logs-${Date.now()}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(downloadUrl);
+          }
+        } catch (error) {
+          console.error('Export failed:', error);
+        }
+      }
+
+      loadAuditLogs();
+      loadSummary();
+    </script>
+  </body>
+</html>
